@@ -1,12 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Renegade</title>
-</head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Orbital Guardian</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            position: relative;
+        }
+        canvas {
+            border: 2px solid #333;
+            display: block;
+        }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+        }
+        #instructions {
+            position: absolute;
+            bottom: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            font-size: 14px;
+        }
+    </style>
+<link rel="modulepreload" href="/renegade-6f671188f527d7cb.js" crossorigin="anonymous" integrity="sha384-lN7hosjuI2D+buuEwGH4cH6t5u44yQZXidEtZ3bhAngkfPaY1FL65iF0xFjba8Dq"><link rel="preload" href="/renegade-6f671188f527d7cb_bg.wasm" crossorigin="anonymous" integrity="sha384-1UCNweajIbdJz0aBFkrwZwr/tuM6L6H4EYk8KuKwI9fbgxjXX1qupanU2f2VZLR/" as="fetch" type="application/wasm"></head>
 <body>
-    <h1>Hello from Renegade!</h1>
-    <!-- Trunk injects the WASM/JS bundle automatically. -->
+    <div id="game-container">
+        <div id="loading">Loading...</div>
+        <canvas id="game-canvas"></canvas>
+        <div id="instructions">
+            Use Arrow Keys or A/D to rotate • Spacebar to shoot
+        </div>
+    </div>
+    
+<script type="module">
+import init, * as bindings from '/renegade-6f671188f527d7cb.js';
+const wasm = await init({ module_or_path: '/renegade-6f671188f527d7cb_bg.wasm' });
+
+
+window.wasmBindings = bindings;
+
+
+dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
+
+</script>
 <script>"use strict";
 
 (function () {
