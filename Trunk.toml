@@ -1,0 +1,7 @@
+[build]
+target = "www/index.html"
+dist = "dist"          # Output directory (default: dist)
+
+[serve]
+port = 8080            # Optional: set dev server port
+open = true            # Optional: open browser
