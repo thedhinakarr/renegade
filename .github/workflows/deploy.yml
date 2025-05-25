@@ -1,0 +1,56 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ main, master ]
+
+env:
+  DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/renegade
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: wasm32-unknown-unknown
+
+    - name: Install trunk & wasm-bindgen
+      run: |
+        cargo install trunk
+        cargo install wasm-bindgen-cli
+
+    - name: Build (Trunk)
+      run: trunk build --release
+
+    - name: Build Docker image
+      run: docker build -t $DOCKER_IMAGE:latest .
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Push Docker image
+      run: docker push $DOCKER_IMAGE:latest
+
+    - name: Deploy to server via SSH
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: 129.151.220.95
+        username: ubuntu
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          docker pull ${{ env.DOCKER_IMAGE }}:latest
+          docker stop renegade || true
+          docker rm renegade || true
+          docker run -d -p 80:80 --name renegade \
+            --memory="400m" --memory-swap="600m" \
+            --restart unless-stopped \
+            ${{ env.DOCKER_IMAGE }}:latest
