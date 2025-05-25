@@ -18,5 +18,7 @@ RUN trunk build --release
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY www/nginx.conf /etc/nginx/nginx.conf
+COPY www/ssl /etc/nginx/ssl
 EXPOSE 80
+EXPOSE 443
 CMD ["nginx", "-g", "daemon off;"]
