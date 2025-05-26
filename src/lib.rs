@@ -28,10 +28,14 @@ struct GameState {
     player_speed: f64,
     threats: Vec<Threat>,
     projectiles: Vec<Projectile>,
+    particles: Vec<Particle>,
     score: u32,
     planet_health: i32,
     time: f64,
     game_over: bool,
+    combo: u32,
+    combo_timer: f64,
+    screen_shake: f64,
 }
 
 struct Threat {
@@ -50,6 +54,17 @@ struct Projectile {
     radius: f64,
 }
 
+struct Particle {
+    x: f64,
+    y: f64,
+    vx: f64,
+    vy: f64,
+    size: f64,
+    lifetime: f64,
+    max_lifetime: f64,
+    color: (u8, u8, u8),
+}
+
 impl GameState {
     fn new() -> Self {
         GameState {
@@ -57,11 +72,37 @@ impl GameState {
             player_speed: 0.02,
             threats: Vec::new(),
             projectiles: Vec::new(),
+            particles: Vec::new(),
             score: 0,
             planet_health: 100,
             time: 0.0,
             game_over: false,
+            combo: 0,
+            combo_timer: 0.0,
+            screen_shake: 0.0,
         }
+    }
+    
+    fn create_explosion(&mut self, x: f64, y: f64, color: (u8, u8, u8), count: u32) {
+        for _ in 0..count {
+            let angle = js_sys::Math::random() * f64::consts::PI * 2.0;
+            let speed = js_sys::Math::random() * 4.0 + 2.0;
+            
+            self.particles.push(Particle {
+                x,
+                y,
+                vx: angle.cos() * speed,
+                vy: angle.sin() * speed,
+                size: js_sys::Math::random() * 4.0 + 2.0,
+                lifetime: 1.0,
+                max_lifetime: 1.0,
+                color,
+            });
+        }
+    }
+    
+    fn add_screen_shake(&mut self, intensity: f64) {
+        self.screen_shake = (self.screen_shake + intensity).min(10.0);
     }
 
     fn update(&mut self, delta: f64) {
@@ -72,18 +113,38 @@ impl GameState {
 
         self.time += delta;
         
+        // Update screen shake
+        if self.screen_shake > 0.0 {
+            self.screen_shake -= delta * 0.01;
+            if self.screen_shake < 0.0 {
+                self.screen_shake = 0.0;
+            }
+        }
+        
+        // Update combo timer
+        if self.combo_timer > 0.0 {
+            self.combo_timer -= delta * 0.001;
+            if self.combo_timer <= 0.0 {
+                self.combo = 0;
+            }
+        }
+        
         // Update player position (orbit)
         self.player_angle += self.player_speed;
         if self.player_angle > f64::consts::PI * 2.0 {
             self.player_angle -= f64::consts::PI * 2.0;
         }
 
-        // Spawn threats periodically
-        if self.time % 2000.0 < delta {
+        // Spawn threats periodically (increase with time)
+        let spawn_rate = 2000.0 - (self.time * 0.02).min(1500.0);
+        if self.time % spawn_rate < delta {
             self.spawn_threat();
         }
 
         // Update threats
+        let mut explosions_to_create = Vec::new();
+        let mut shake_to_add = 0.0;
+        
         self.threats.retain_mut(|threat| {
             threat.x += threat.vx;
             threat.y += threat.vy;
@@ -94,6 +155,9 @@ impl GameState {
             
             if dist_to_center < PLANET_RADIUS {
                 self.planet_health -= 10;
+                self.combo = 0;  // Reset combo on hit
+                shake_to_add += 5.0;
+                explosions_to_create.push((threat.x, threat.y, (255, 100, 100), 20));
                 console_log!("Planet hit! Health: {}", self.planet_health);
                 
                 // Check for game over
@@ -112,6 +176,7 @@ impl GameState {
         });
 
         // Update projectiles
+        let mut hit_positions = Vec::new();
         self.projectiles.retain_mut(|proj| {
             proj.x += proj.vx;
             proj.y += proj.vy;
@@ -123,7 +188,18 @@ impl GameState {
                 let dist = (dx * dx + dy * dy).sqrt();
                 
                 if dist < proj.radius + threat.radius {
-                    self.score += 10;
+                    // Combo system
+                    self.combo += 1;
+                    self.combo_timer = 2.0;
+                    
+                    // Score with combo multiplier
+                    let points = 10 * self.combo.min(10);
+                    self.score += points;
+                    
+                    // Store hit info for later
+                    hit_positions.push((threat.x, threat.y));
+                    shake_to_add += 2.0;
+                    
                     threat.radius = 0.0; // Mark for removal
                     return false;
                 }
@@ -136,6 +212,27 @@ impl GameState {
 
         // Remove destroyed threats
         self.threats.retain(|t| t.radius > 0.0);
+        
+        // Create explosions after the retain_mut
+        for (x, y, color, count) in explosions_to_create {
+            self.create_explosion(x, y, color, count);
+        }
+        
+        for (x, y) in hit_positions {
+            self.create_explosion(x, y, (255, 200, 100), 15);
+        }
+        
+        self.add_screen_shake(shake_to_add);
+        
+        // Update particles
+        self.particles.retain_mut(|particle| {
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            particle.vx *= 0.98; // Friction
+            particle.vy *= 0.98;
+            particle.lifetime -= delta * 0.002;
+            particle.lifetime > 0.0
+        });
     }
 
     fn spawn_threat(&mut self) {
@@ -201,20 +298,67 @@ fn game_loop(
         // Update game state
         state.borrow_mut().update(delta);
 
-        // Clear canvas
-        ctx.set_fill_style(&JsValue::from_str("#000011"));
+        // Clear canvas with very dark background
+        ctx.set_fill_style(&"#000000".into());
         ctx.fill_rect(0.0, 0.0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        
+        // Add subtle grid overlay at bottom
+        ctx.set_stroke_style(&"rgba(255, 0, 100, 0.1)".into());
+        ctx.set_line_width(1.0);
+        
+        // Horizontal lines getting closer together toward bottom (perspective)
+        for i in 0..20 {
+            let y = CANVAS_HEIGHT * 0.7 + (i as f64).powf(1.5) * 8.0;
+            if y < CANVAS_HEIGHT {
+                ctx.begin_path();
+                ctx.move_to(0.0, y);
+                ctx.line_to(CANVAS_WIDTH, y);
+                ctx.stroke();
+            }
+        }
+        
+        // Vertical lines for grid
+        for i in 0..40 {
+            let x = (i as f64 - 20.0) * 40.0 + CANVAS_WIDTH / 2.0;
+            ctx.begin_path();
+            ctx.move_to(x, CANVAS_HEIGHT * 0.7);
+            ctx.line_to(x + (x - CANVAS_WIDTH / 2.0) * 0.3, CANVAS_HEIGHT);
+            ctx.stroke();
+        }
 
-        // Draw stars
-        ctx.set_fill_style(&JsValue::from_str("#FFFFFF"));
-        for i in 0..50 {
-            let x = (i * 73 % 800) as f64;
-            let y = (i * 37 % 600) as f64;
+        let state_ref = state.borrow();
+        
+        // Apply screen shake
+        if state_ref.screen_shake > 0.0 {
+            let shake_x = (js_sys::Math::random() - 0.5) * state_ref.screen_shake;
+            let shake_y = (js_sys::Math::random() - 0.5) * state_ref.screen_shake;
+            ctx.save();
+            ctx.translate(shake_x, shake_y).unwrap();
+        }
+
+        // Draw minimal stars - just a few bright ones
+        ctx.set_fill_style(&"rgba(255, 255, 255, 0.95)".into());
+        for i in 0..15 {
+            let x = (i * 137 % 800) as f64;
+            let y = (i * 73 % 300) as f64;
             ctx.fill_rect(x, y, 1.0, 1.0);
         }
 
-        // Draw planet
-        ctx.set_fill_style(&JsValue::from_str("#0066CC"));
+        // Draw planet - dark with subtle red underglow
+        // Simple red glow effect
+        ctx.set_fill_style(&"rgba(0, 127, 200, 0.2)".into());
+        ctx.begin_path();
+        ctx.arc(
+            CANVAS_WIDTH / 2.0,
+            CANVAS_HEIGHT / 2.0,
+            PLANET_RADIUS * 2.0,
+            0.0,
+            f64::consts::PI * 2.0,
+        ).unwrap();
+        ctx.fill();
+        
+        // Planet - very dark
+        ctx.set_fill_style(&"#1D447F".into());
         ctx.begin_path();
         ctx.arc(
             CANVAS_WIDTH / 2.0,
@@ -224,9 +368,32 @@ fn game_loop(
             f64::consts::PI * 2.0,
         ).unwrap();
         ctx.fill();
+        
+        // Subtle rim light
+        ctx.set_stroke_style(&"rgba(3, 0, 200, 0.5)".into());
+        ctx.set_line_width(1.0);
+        ctx.stroke();
+        
+        // Planet - very dark   
+        ctx.set_fill_style(&"#0011FFC4".into());
+        ctx.begin_path();
+        ctx.arc(
+            CANVAS_WIDTH / 2.0,
+            CANVAS_HEIGHT / 2.0,
+            PLANET_RADIUS,
+            0.0,
+            f64::consts::PI * 2.0,
+        ).unwrap();
+        ctx.fill();
+        
+        // Subtle rim light
+        ctx.set_stroke_style(&"rgba(3, 0, 200, 0.5)".into());
+        ctx.set_line_width(1.0);
+        ctx.stroke();
 
-        // Draw orbit path
-        ctx.set_stroke_style(&JsValue::from_str("#333333"));
+        // Draw orbit path - very subtle
+        ctx.set_stroke_style(&"rgba(255, 0, 0, 0.34)".into());
+        ctx.set_line_width(1.0);
         ctx.begin_path();
         ctx.arc(
             CANVAS_WIDTH / 2.0,
@@ -237,12 +404,33 @@ fn game_loop(
         ).unwrap();
         ctx.stroke();
 
-        // Draw player
-        let state_ref = state.borrow();
+        // Draw particles (before other objects for background effect)
+        for particle in &state_ref.particles {
+            let alpha = particle.lifetime / particle.max_lifetime;
+            ctx.set_fill_style(&JsValue::from_str(&format!(
+                "rgba({}, {}, {}, {})",
+                particle.color.0, particle.color.1, particle.color.2, alpha
+            )));
+            ctx.fill_rect(
+                particle.x - particle.size / 2.0,
+                particle.y - particle.size / 2.0,
+                particle.size,
+                particle.size,
+            );
+        }
+
+        // Draw player - minimal with red accent
         let player_x = CANVAS_WIDTH / 2.0 + state_ref.player_angle.cos() * ORBIT_RADIUS;
         let player_y = CANVAS_HEIGHT / 2.0 + state_ref.player_angle.sin() * ORBIT_RADIUS;
         
-        ctx.set_fill_style(&JsValue::from_str("#00FF00"));
+        // Simple red glow behind player
+        ctx.set_fill_style(&"rgba(255, 0, 0, 0)".into());
+        ctx.begin_path();
+        ctx.arc(player_x, player_y, PLAYER_SIZE, 0.0, f64::consts::PI * 2.0).unwrap();
+        ctx.fill();
+        
+        // Player ship - white/gray
+        ctx.set_fill_style(&"#cccccc".into());
         ctx.save();
         ctx.translate(player_x, player_y).unwrap();
         ctx.rotate(state_ref.player_angle + f64::consts::PI / 2.0).unwrap();
@@ -254,20 +442,39 @@ fn game_loop(
         ctx.fill();
         ctx.restore();
 
-        // Draw threats
-        ctx.set_fill_style(&JsValue::from_str("#FF3333"));
+        // Draw threats - dark with red glow
         for threat in &state_ref.threats {
+            // Subtle red glow
+            ctx.set_fill_style(&"rgba(200, 0, 0, 0.4)".into());
+            ctx.begin_path();
+            ctx.arc(threat.x, threat.y, threat.radius * 1.5, 0.0, f64::consts::PI * 2.0).unwrap();
+            ctx.fill();
+            
+            // Threat core - dark red
+            ctx.set_fill_style(&"#660000".into());
             ctx.begin_path();
             ctx.arc(threat.x, threat.y, threat.radius, 0.0, f64::consts::PI * 2.0).unwrap();
             ctx.fill();
         }
 
-        // Draw projectiles
-        ctx.set_fill_style(&JsValue::from_str("#FFFF00"));
+        // Draw projectiles - bright red/orange
         for proj in &state_ref.projectiles {
+            // Projectile glow
+            ctx.set_fill_style(&"rgba(0, 17, 255, 0.77)".into());
+            ctx.begin_path();
+            ctx.arc(proj.x, proj.y, proj.radius * 2.0, 0.0, f64::consts::PI * 2.0).unwrap();
+            ctx.fill();
+            
+            // Projectile core
+            ctx.set_fill_style(&"#0011FF".into());
             ctx.begin_path();
             ctx.arc(proj.x, proj.y, proj.radius, 0.0, f64::consts::PI * 2.0).unwrap();
             ctx.fill();
+        }
+        
+        // Restore canvas if shaking
+        if state_ref.screen_shake > 0.0 {
+            ctx.restore();
         }
 
         // Draw UI
@@ -275,6 +482,13 @@ fn game_loop(
         ctx.set_font("20px Arial");
         ctx.fill_text(&format!("Score: {}", state_ref.score), 10.0, 30.0).unwrap();
         ctx.fill_text(&format!("Planet Health: {}", state_ref.planet_health), 10.0, 60.0).unwrap();
+        
+        // Draw combo
+        if state_ref.combo > 1 {
+            ctx.set_fill_style(&JsValue::from_str("#FFD700"));
+            ctx.set_font("24px Arial");
+            ctx.fill_text(&format!("{}x COMBO!", state_ref.combo), 10.0, 90.0).unwrap();
+        }
 
         // Draw game over screen
         if state_ref.game_over {
