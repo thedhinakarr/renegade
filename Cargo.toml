@@ -1,25 +1,81 @@
+###############################################################################
+# Renegade – Cargo manifest
+###############################################################################
+
 [package]
-name = "renegade"
+name    = "renegade"
 version = "0.1.0"
-edition = "2021"  # Note: should be 2021, not 2024
+edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib"]              # wasm-bindgen needs a cdylib
+
+###############################################################################
+# 1. COMMON DEPENDENCIES (built for every target)
+###############################################################################
 
 [dependencies]
-wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = [
-    "console",
-    "Document", 
-    "Element",
-    "HtmlCanvasElement",
-    "CanvasRenderingContext2d",
-    "Window",
-    "KeyboardEvent",
-] }
-js-sys = "0.3"
-console_error_panic_hook = "0.1"  # Add this for better error messages
+wasm-bindgen             = "0.2"
+wasm-bindgen-futures     = "0.4"
+js-sys                   = "0.3"
+console_error_panic_hook = "0.1.7"
+once_cell                = "1"       # for audio::AUDIO Lazy static
+
+# ---- add any other always-compiled crates your game already uses here ----
+# glam        = "0.27"
+# anyhow      = "1"
+# macroquad   = { version = "0.4", features = ["audio"] }
+# --------------------------------------------------------------------------
+
+# 1-a.  OPTIONAL native-only audio backend (Rodio)
+[dependencies.rodio]
+version           = "0.18"
+default-features  = false
+features          = ["flac", "wav", "mp3"]
+optional          = true
+
+###############################################################################
+# 2. WEB-SYS FEATURE BUNDLE
+###############################################################################
+
+[dependencies.web-sys]
+version  = "0.3"
+features = [
+  # Web Audio
+  "AudioContext", "AudioDestinationNode", "AudioNode",
+  "AudioBuffer",  "AudioBufferSourceNode", "HtmlAudioElement",
+  # Fetch API
+  "Request", "RequestInit", "RequestMode", "Response",
+  # DOM / Canvas / Input
+  "Window", "Document", "HtmlCanvasElement",
+  "CanvasRenderingContext2d", "KeyboardEvent",
+  "Element", "HtmlElement",
+  # JS console
+  "console",
+]
+
+###############################################################################
+# 3. FEATURE FLAGS
+###############################################################################
+
+[features]
+default = []            # keeps browser build lean
+native  = ["rodio"]     # desktop build:  cargo run --features native
+
+###############################################################################
+# 4. TARGET-SPECIFIC DEPENDENCIES
+###############################################################################
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+gloo-utils = "0.2"
+
+# NOTE: no native-specific dependency block needed –
+#       Rodio is optional and pulled in only via the `native` feature above.
+
+###############################################################################
+# 5. RELEASE PROFILE TWEAKS
+###############################################################################
 
 [profile.release]
-opt-level = "s"
-lto = true
+opt-level = "s"         # smaller WASM
+lto       = true

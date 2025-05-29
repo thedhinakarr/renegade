@@ -4,3 +4,7 @@ dist = "dist"
 [serve]
 port = 8080
 open = true
+
+[[copy]]
+source = "assets"
+dest   = "assets"

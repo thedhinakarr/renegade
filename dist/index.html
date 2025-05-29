@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +10,7 @@
             font-family: 'Digital';
             src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
         }
-        
+
         body {
             margin: 0;
             padding: 0;
@@ -21,16 +22,16 @@
             font-family: 'Courier New', monospace;
             overflow: hidden;
         }
-        
+
         #game-container {
             position: relative;
         }
-        
+
         canvas {
             display: block;
             image-rendering: crisp-edges;
         }
-        
+
         #loading {
             position: absolute;
             top: 50%;
@@ -41,7 +42,7 @@
             letter-spacing: 2px;
             text-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
-        
+
         #instructions {
             position: absolute;
             bottom: -40px;
@@ -53,7 +54,7 @@
             letter-spacing: 1px;
             text-transform: uppercase;
         }
-        
+
         #title {
             position: absolute;
             top: -60px;
@@ -65,7 +66,7 @@
             letter-spacing: 12px;
             text-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
         }
-        
+
         #trademark {
             position: absolute;
             bottom: -65px;
@@ -76,7 +77,7 @@
             letter-spacing: 3px;
             text-transform: uppercase;
         }
-        
+
         /* Scan line effect */
         #game-container::after {
             content: '';
@@ -85,18 +86,20 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(
-                rgba(18, 16, 16, 0) 50%,
-                rgba(0, 0, 0, 0.25) 50%
-            );
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%,
+                    rgba(0, 0, 0, 0.25) 50%);
             background-size: 100% 2px;
             pointer-events: none;
             opacity: 0.5;
         }
     </style>
-<link rel="modulepreload" href="/renegade-13a144d99c001f79.js" crossorigin="anonymous" integrity="sha384-2T4c6Jy+W6toKBK72YUb+OupR6dsz8WKNsTVnfr7w/Q1/WporWYM+16102FDksGM"><link rel="preload" href="/renegade-13a144d99c001f79_bg.wasm" crossorigin="anonymous" integrity="sha384-qrTh/kmHuy4B8x7hE+DlfSA3R2LE6HOukd3rucce/WEBXUSyNxina7ngG/JdVILx" as="fetch" type="application/wasm"></head>
+<link rel="modulepreload" href="/renegade-67b68fcf6bbdd991.js" crossorigin="anonymous" integrity="sha384-SLdwqLWxbpxcpfcokYa46RTeh+pT/cdG7uQZ6SAEGHn8hTyUYc2gerSnBn3eCvsK"><link rel="preload" href="/renegade-67b68fcf6bbdd991_bg.wasm" crossorigin="anonymous" integrity="sha384-iCZhGT0YE+K4X4Bc68FusKK/QDdJpxdK7qWJEadAoa9SflW+zojn2iL5Ekv8cXnO" as="fetch" type="application/wasm"></head>
+
 <body>
     <div id="game-container">
+        <div id="audio-prompt" style="position: absolute; top: 10px; right: 10px; color: #666;">
+            Press any key to enable audio
+        </div>
         <div id="title">RENEGADE</div>
         <div id="loading">LOADING...</div>
         <canvas id="game-canvas"></canvas>
@@ -109,8 +112,8 @@
     </div>
     
 <script type="module">
-import init, * as bindings from '/renegade-13a144d99c001f79.js';
-const wasm = await init({ module_or_path: '/renegade-13a144d99c001f79_bg.wasm' });
+import init, * as bindings from '/renegade-67b68fcf6bbdd991.js';
+const wasm = await init({ module_or_path: '/renegade-67b68fcf6bbdd991_bg.wasm' });
 
 
 window.wasmBindings = bindings;
@@ -118,7 +121,7 @@ window.wasmBindings = bindings;
 
 dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
-</script>    
+</script>
 <script>"use strict";
 
 (function () {
@@ -249,4 +252,5 @@ dispatchEvent(new CustomEvent("TrunkApplicationStarted", {detail: {wasm}}));
 
 })()
 </script></body>
+
 </html>
