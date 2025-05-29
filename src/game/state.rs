@@ -53,7 +53,7 @@ impl GameState {
             radius: 5.0,
         });
 
-        console::log_1(&"shoot() called".into());          // <── debug line
+        console::log_1(&format!("Shot fired! Projectiles: {}", self.projectiles.len()).into());
         audio::play(Sound::Shoot);
     }
 
@@ -83,28 +83,6 @@ impl GameState {
         }
     }
 
-    // ───────────────────────────────── game loop pieces ────────────────── //
-
-    /// very small input handler so SPACE or mouse fires a shot
-    pub fn update_player(&mut self) {
-        // read JS key / mouse via wasm-bindgen (pseudo-code; replace with your lib)
-        let win   = web_sys::window().unwrap();
-        let input = win.navigator().gamepad(); // or whatever you already use
-
-        // here we just check: SPACE bar down _or_ mouse button pressed
-        let space = web_sys::window().unwrap()
-            .document().unwrap()
-            .get_element_by_id("space-down")   // placeholder; swap with real input
-            .is_some();
-        let mouse = win
-            .document().unwrap()
-            .get_element_by_id("mouse-down")   // placeholder
-            .is_some();
-
-        if space || mouse {
-            self.shoot();
-        }
-    }
-
-    // other update_* methods stay unchanged (spawn_threats, physics, etc.)
+    // REMOVED the duplicate update_player function from here
+    // It's now only in systems.rs
 }

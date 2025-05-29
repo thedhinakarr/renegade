@@ -5,9 +5,6 @@ use crate::game::physics::*;
 use crate::constants::*;
 use crate::audio::{self, Sound};
 
-// Remove wasm_bindgen prelude and extern "C" block if console_log! is not used here.
-// If direct web_sys::console::log_1 is used, these are not needed.
-
 impl GameState {
    pub fn update(&mut self, dt: f64) {
         if self.game_over { return; }
@@ -85,19 +82,46 @@ impl GameState {
 
     
    fn update_projectiles(&mut self) {
+        // FIXED: Collect explosions first, then apply after retain
+        let mut explosions_to_create = Vec::new();
+        let mut score_to_add = 0;
+        
         self.projectiles.retain_mut(|p| {
-            p.x += p.vx; p.y += p.vy;
+            p.x += p.vx; 
+            p.y += p.vy;
+            
             for t in &mut self.threats {
                 if check_collision(p.x, p.y, p.radius, t.x, t.y, t.radius) {
-                    t.radius = 0.0;
+                    t.radius = 0.0; // Mark for removal
+                    
+                    // FIXED: Add scoring logic here
                     self.combo += 1;
-                    self.create_explosion(t.x, t.y, (255, 200, 100), 15);
+                    self.combo_timer = 2.0; // Reset combo timer
+                    let points = 10 * self.combo.min(10); // Max 10x multiplier
+                    score_to_add += points;
+                    
+                    // Store explosion data for later
+                    explosions_to_create.push((t.x, t.y, (255, 200, 100), 15));
+                    
+                    // Debug log
+                    web_sys::console::log_1(&format!("Hit! Score: {}, Combo: {}x", points, self.combo).into());
+                    
                     return false;
                 }
             }
             is_on_screen(p.x, p.y, p.radius + 50.0)
         });
+        
+        // Apply score after borrows are resolved
+        self.score += score_to_add;
+        
+        // Remove destroyed threats
         self.threats.retain(|t| t.radius > 0.0);
+        
+        // Create explosions after borrow issues are resolved
+        for (x, y, color, count) in explosions_to_create {
+            self.create_explosion(x, y, color, count);
+        }
     }
     
     fn update_particles(&mut self, delta: f64) {
@@ -112,7 +136,11 @@ impl GameState {
     fn update_combo_timer(&mut self, delta: f64) {
         if self.combo_timer > 0.0 {
             self.combo_timer -= delta; 
-            if self.combo_timer <= 0.0 { self.combo = 0; self.combo_timer = 0.0; }
+            if self.combo_timer <= 0.0 { 
+                web_sys::console::log_1(&format!("Combo reset from {}x", self.combo).into());
+                self.combo = 0; 
+                self.combo_timer = 0.0; 
+            }
         }
     }
 
